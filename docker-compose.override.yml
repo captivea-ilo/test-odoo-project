@@ -9,8 +9,15 @@ services:
     tty: true
     stdin_open: true
     ports:
-      - 8069
-      - 8072
+      - 8099:8069
+      - 8082:8072
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.services.odoov8-odooc2c.loadbalancer.server.port=8069'
+      - 'traefik.http.routers.odoov8-odooc2c-http.entryPoints=http'
+      - 'traefik.http.routers.odoov8-odooc2c.rule=Host(`odooc2c.docker.localhost`)'
+      - 'traefik.http.routers.odoov8-odooc2c.service=odoov8-odooc2c@docker'
+      - 'traefik.http.routers.odoov8-odooc2c-http.middlewares=redirect-https@file,request-compress@file,autodetect@docker'
     volumes:
       - "data-odoo-pytest-cache:/opt/odoo/.cache"
       - "./odoo/src:/opt/odoo/src"
@@ -22,14 +29,51 @@ services:
     environment:
       - MARABUNTA_MODE=demo  # could be 'full' for the db with all the data
       - MARABUNTA_ALLOW_SERIE=True  # should not be set in production
-
+      - MARABUNTA_FORCE_VERSION=10.0  # should not be set in production
+    networks:
+      network_odoo:
+        aliases:
+          - 'odoo'
+      traefik:
+        aliases:
+          - 'odoo_traefik-odoo-app'
   db:
     ports:
       - 5432
+    networks:
+      network_odoo:
+        aliases:
+          - 'db'
 
   nginx:
     ports:
-      - 80:80
+      - 8099:80
+
+  mailcatcher:
+    restart: always
+    image: dockage/mailcatcher
+    networks:
+      network_odoo:
+        aliases:
+          - 'mailcatcher'
+      traefik:
+        aliases:
+          - 'odoo_traefik-mailcatcher'
+
+    labels:
+          - 'traefik.enable=true'
+          - 'traefik.http.services.odoov8-mailcatcher.loadbalancer.server.port=1080'
+          - 'traefik.http.routers.odoov8-mailcatcher-http.entryPoints=http'
+          - 'traefik.http.routers.odoov8-mailcatcher.rule=Host(`mailcatcher.docker.localhost`)'
+          - 'traefik.http.routers.odoov8-mailcatcher.service=odoov8-mailcatcher@docker'
+          - 'traefik.http.routers.odoov8-mailcatcher-http.middlewares=redirect-https@file,request-compress@file,autodetect@docker'
 
 volumes:
   data-odoo-pytest-cache:
+
+networks:
+  network_odoo:
+    driver: bridge
+  traefik:
+    external:
+      name: traefik

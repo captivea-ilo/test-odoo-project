@@ -1,0 +1,65 @@
+# Root file for the composition.
+#
+# The options specific to the development should go in
+# 'docker-compose.override.yml' which is automatically applied on top of this
+# file when the option '-f' of docker-compose is not used
+
+version: '2'
+services:
+  odoo:
+    build: ./odoo/
+    # Enable if you use oca/connector:
+    # command: "odoo.py --load=web,connector"
+    depends_on:
+      - db
+    volumes:
+      - "data-odoo:/data/odoo"
+    environment:
+      - DB_USER=odoo
+      - DB_PASSWORD=odoo
+      - DB_NAME=odoodb
+      - ADMIN_PASSWD=mijaebohb8Thae1g
+      - RUNNING_ENV=dev
+      # Enable if you use oca/connector:
+      # - ODOO_CONNECTOR_CHANNELS=root:4
+    networks:
+      traefik:
+        aliases:
+          - 'odoo_traefik-app-test'
+
+  db:
+    image: postgres:9.6
+    command: -c shared_buffers=256MB -c maintenance_work_mem=256MB -c wal_buffers=8MB -c effective_cache_size=1024MB
+    environment:
+      - POSTGRES_USER=odoo
+      - POSTGRES_PASSWORD=odoo
+    volumes:
+      - "data-db:/var/lib/postgresql/data"
+    networks:
+      traefik:
+        aliases:
+          - 'odoo_traefik-db-test'
+
+  mailcatcher:
+    restart: always
+    image: dockage/mailcatcher
+    networks:
+      traefik:
+        aliases:
+          - 'odoo_traefik-mailcatcher'
+    labels:
+          - 'traefik.enable=true'
+          - 'traefik.http.services.odoov8-mailcatcher.loadbalancer.server.port=1080'
+          - 'traefik.http.routers.odoov8-mailcatcher-http.entryPoints=http'
+          - 'traefik.http.routers.odoov8-mailcatcher.rule=Host(`mailcatcher.docker.localhost`)'
+          - 'traefik.http.routers.odoov8-mailcatcher.service=odoov8-mailcatcher@docker'
+          - 'traefik.http.routers.odoov8-mailcatcher-http.middlewares=redirect-https@file,request-compress@file,autodetect@docker'
+
+volumes:
+  data-odoo:
+  data-db:
+
+networks:
+  traefik:
+    external:
+      name: traefik
